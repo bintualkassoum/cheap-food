@@ -4,30 +4,50 @@ import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function GalleryPage() {
-  const [uploads, setUploads] = useState<any[]>([]);
+  const [recipes, setRecipes] = useState<any[]>([]);
 
   useEffect(() => {
-    async function fetchUploads() {
-      const { data } = await supabase
-        .from("uploads")
+    async function fetchRecipes() {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) return;
+      const { data, error } = await supabase
+        .from("recipes")
         .select("*")
+        .eq("user_id", userData.user.id)
         .order("created_at", { ascending: false });
-      setUploads(data || []);
+      if (!error && data) setRecipes(data);
     }
-    fetchUploads();
+    fetchRecipes();
   }, []);
 
   return (
     <div className="grid gap-4 p-8 md:grid-cols-3">
-      {uploads.map(upload => (
-        <Card key={upload.id}>
+      {recipes.map((recipe) => (
+        <Card key={recipe.id}>
           <CardContent>
-            <img
-              src={`https://hwbruggymqgjmynacbxb.supabase.co/storage/v1/object/public/${upload.file_url}`}
-              alt={upload.description || "upload"}
-              className="w-full rounded"
-            />
-            <div className="mt-2 text-xs">{upload.description}</div>
+            <div className="font-bold">{recipe.title}</div>
+            <div>
+              <strong>Ingredients:</strong>
+              <ul className="list-disc pl-5">
+                {Array.isArray(recipe.ingredients)
+                  ? recipe.ingredients.map((ing: any, i: number) =>
+                      typeof ing === "string" ? (
+                        <li key={i}>{ing}</li>
+                      ) : (
+                        <li key={i}>
+                          {ing.name}
+                          {ing.amount ? ` (${ing.amount})` : ""}
+                        </li>
+                      )
+                    )
+                  : <li>{JSON.stringify(recipe.ingredients)}</li>
+                }
+              </ul>
+            </div>
+            <div>
+              <strong>Instructions:</strong>
+              <p className="whitespace-pre-line">{recipe.instructions}</p>
+            </div>
           </CardContent>
         </Card>
       ))}
