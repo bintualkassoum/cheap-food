@@ -14,58 +14,62 @@ export default function UploadPage() {
   async function handleUpload() {
     setMessage("Uploading file...");
     setRecipe(null);
-
+  
     if (!file) return;
-
-    // 1. Upload file to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from("uploads")
-      .upload(`public/${file.name}`, file);
-
-    if (error) {
-      setMessage(`Upload error: ${error.message}`);
-      return;
-    }
-
-    // 2. Get public URL for the uploaded file
-    const { data: publicData } = supabase
-      .storage
-      .from("uploads")
-      .getPublicUrl(data.path);
-
-    const publicUrl = publicData.publicUrl;
-    setImageUrl(publicUrl);
-
-    // 3. Insert file metadata into uploads table
+  
+    // 1. Get the current user FIRST
     const { data: userData } = await supabase.auth.getUser();
-
+  
     if (!userData?.user) {
       setMessage("You must be logged in to upload files.");
       return;
     }
-
+  
+    // 2. Generate a unique file name using the user ID
+    const uniqueName = `${userData.user.id}_${Date.now()}_${file.name}`;
+  
+    // 3. Upload file to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from("uploads")
+      .upload(uniqueName, file, { upsert: true });
+  
+    if (error) {
+      setMessage(`Upload error: ${error.message}`);
+      return;
+    }
+  
+    // 4. Get public URL for the uploaded file
+    const { data: publicData } = supabase
+      .storage
+      .from("uploads")
+      .getPublicUrl(uniqueName);
+  
+    const publicUrl = publicData.publicUrl;
+    setImageUrl(publicUrl);
+  
+    // 5. Insert file metadata into uploads table
     const insertResp = await supabase.from("uploads").insert([
       {
         user_id: userData.user.id,
         upload_type: file.type.startsWith("image") ? "image" : "video",
-        file_url: data.path, // still use the storage path for backend parsing
+        file_url: uniqueName,
         source: "direct_upload",
         processed: false,
         description: file.name,
       }
     ]).select();
-
+  
     if (insertResp.error || !insertResp.data) {
       setMessage(`Metadata error: ${insertResp.error?.message}`);
       return;
     }
-
+  
     const uploadId = insertResp.data[0].id;
-    const fileUrl = data.path; // <-- Now defined
-
+    const fileUrl = uniqueName;
+  
     setMessage("File uploaded. Parsing with AI...");
-
-    // 4. Send request to backend to parse the file with Gemini
+  
+    // 6. Send request to backend to parse the file with Gemini
     try {
       const response = await fetch("http://localhost:8000/parse", {
         method: "POST",
@@ -83,6 +87,7 @@ export default function UploadPage() {
       setMessage("Error calling backend AI parser.");
     }
   }
+  
 
   return (
     <div className="flex items-center justify-center min-h-screen">
@@ -125,6 +130,7 @@ export default function UploadPage() {
               </div>
             </div>
           )}
+
         </CardContent>
       </Card>
     </div>
