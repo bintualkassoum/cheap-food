@@ -1,5 +1,6 @@
 // app/layout.tsx
 "use client";
+import "./globals.css";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -34,6 +35,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       listener?.subscription.unsubscribe();
     };
   }, [router, pathname]);
+
+  useEffect(() => {
+    document.body.style.overscrollBehaviorX = "auto";
+    return () => {
+      document.body.style.overscrollBehaviorX = "";
+    };
+  }, []);
 
   return (
     <html lang="en">
