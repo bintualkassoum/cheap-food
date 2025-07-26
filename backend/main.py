@@ -1,11 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from datetime import datetime
 
 from services.fetch_recipes import (
     fetch_file_from_supabase,
     parse_media_with_gemini,
     save_recipe_to_supabase,
+    supabase,
 )
 from services.fetch_grocery_lists import build_grocery_lists, get_grocery_lists_for_recipe
 
@@ -28,6 +30,7 @@ class ParseRequest(BaseModel):
     upload_id: str
     file_url: str
     user_id: str
+    image_url: str
 
 class GroceryListRequest(BaseModel):
     recipe_id: str
@@ -50,7 +53,9 @@ def parse_upload(req: ParseRequest):
         print(f"🍳 Recipe parsed: {parsed.get('title', 'Untitled')}")
         
         # 3. Save recipe to Supabase
-        recipe_row = save_recipe_to_supabase(req.upload_id, req.user_id, parsed)
+        recipe_row = save_recipe_to_supabase(
+            req.upload_id, req.user_id, {**parsed, "image_url": req.image_url}
+        )
         recipe_id = recipe_row["id"]
         print(f"💾 Recipe saved with ID: {recipe_id}")
 
@@ -62,6 +67,18 @@ def parse_upload(req: ParseRequest):
         grocery_lists = get_grocery_lists_for_recipe(recipe_id, req.user_id)
         print(f"✅ Generated {len(grocery_lists)} grocery list recommendations")
 
+        # Save the first (or "best") grocery list to the gallery
+        try:
+            supabase.table("gallery").insert({
+                "user_id": req.user_id,
+                "recipe_id": recipe_id,
+                "grocery_list_id": grocery_lists[0]["id"],
+                "saved_at": datetime.utcnow().isoformat(),
+                "title": recipe_row["title"]
+            }).execute()
+        except Exception as e:
+            print(f"Error saving to gallery: {e}")
+
         return {
             "status": "success",
             "message": "Recipe parsed and grocery lists generated successfully",
@@ -71,9 +88,9 @@ def parse_upload(req: ParseRequest):
                 "ingredients": recipe_row["ingredients"],
                 "instructions": recipe_row["instructions"],
                 "description": recipe_row["description"],
-                "cooking_time": recipe_row.get("cooking_time"),
+                "prep_time": recipe_row.get("prep_time"),
                 "servings": recipe_row.get("servings"),
-                "difficulty": recipe_row.get("difficulty"),
+                "image_url": recipe_row.get("image_url"),
                 "created_at": recipe_row.get("created_at")
             },
             "grocery_lists": grocery_lists,

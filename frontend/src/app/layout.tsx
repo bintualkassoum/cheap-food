@@ -7,6 +7,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FeedbackButton } from "@/components/FeedbackButton";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any | null>(null);
@@ -49,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Card className="rounded-none border-b-2 shadow-none">
           <header className="flex justify-between items-center px-6 py-4">
             <Link href={user ? "/dashboard" : "/"} className="font-bold text-xl tracking-tight">
-              Cheap Food
+              dina
             </Link>
             <nav className="flex items-center gap-4">
               {user && (
@@ -86,6 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </header>
         </Card>
         <main className="max-w-2xl mx-auto py-8 px-4">{children}</main>
+        <FeedbackButton userEmail={user?.email} />
       </body>
     </html>
   );

@@ -28,11 +28,13 @@ Given ONLY the provided media, generate a recipe object in **valid JSON** matchi
   "title": string, // Clear, consistent meal title (create if none shown)
   "ingredients": [ { "name": string, "amount": string } ], // List of ingredients with estimated quantities
   "instructions": string, // Step-by-step instructions as a single string (can be numbered or paragraph)
-  "description": string // A 1-2 sentence summary of the meal, including ingredient highlights and possible substitutions
+  "description": string, // A 1-2 sentence summary of the meal, including ingredient highlights and possible substitutions
+  "prep_time": string, // Estimated preparation and cooking time, e.g. "30 minutes"
+  "servings": integer // Estimated number of servings
 }
 
 **Return ONLY the JSON, no markdown or extra text.** 
-If any part is missing from the image, use your best guess. Be concise, and always include all four fields. Example:
+If any part is missing from the image, use your best guess. Be concise, and always include all six fields. Example:
 
 {
   "title": "Chicken Alfredo Pasta",
@@ -47,7 +49,9 @@ If any part is missing from the image, use your best guess. Be concise, and alwa
     {"name": "black pepper", "amount": "to taste"}
   ],
   "instructions": "1. Cook pasta according to package instructions. 2. Sauté chicken in butter until cooked. 3. Add garlic, then cream. 4. Simmer, add parmesan, toss with pasta. 5. Season and serve.",
-  "description": "Classic Chicken Alfredo Pasta with creamy parmesan sauce. Substitute chicken with mushrooms for a vegetarian option."
+  "description": "Classic Chicken Alfredo Pasta with creamy parmesan sauce. Substitute chicken with mushrooms for a vegetarian option.",
+  "prep_time": "30 minutes",
+  "servings": 2
 }
 """
 
@@ -90,6 +94,9 @@ def save_recipe_to_supabase(upload_id: str, user_id: str, recipe: dict):
     ingredients = recipe.get("ingredients") or []
     instructions = recipe.get("instructions") or recipe.get("steps") or ""
     description = recipe.get("description") or ""
+    image_url = recipe.get("image_url") or ""
+    prep_time = recipe.get("prep_time") or ""
+    servings = recipe.get("servings") or None
     response = supabase.table("recipes").insert({
         "upload_id": upload_id,
         "user_id": user_id,
@@ -97,7 +104,10 @@ def save_recipe_to_supabase(upload_id: str, user_id: str, recipe: dict):
         "ingredients": ingredients,
         "instructions": instructions,
         "description": description,
+        "image_url": image_url,
+        "prep_time": prep_time,
+        "servings": servings,
     }).execute()
-    if not response.data or response.status_code >= 400:
+    if not response.data:
         raise HTTPException(status_code=500, detail=f"Could not save recipe: {getattr(response, 'message', str(response))}")
     return response.data[0]

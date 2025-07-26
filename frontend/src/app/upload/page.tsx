@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,10 @@ export default function UploadPage() {
   const [groceryLists, setGroceryLists] = useState<any[]>([]); 
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recipeSaved, setRecipeSaved] = useState(false);
+  const [savedLists, setSavedLists] = useState<string[]>([]);
+  const [justSaved, setJustSaved] = useState<string | null>(null);
+  const [alreadySaved, setAlreadySaved] = useState(false);
 
   const PANTRY_ITEMS = [
     "salt",
@@ -37,6 +41,21 @@ export default function UploadPage() {
       (name || "").toLowerCase().includes(pantry)
     );
   }
+
+  useEffect(() => {
+    async function checkAlreadySaved() {
+      if (!user || !recipe || !groceryLists.length) return;
+      const { data: existing } = await supabase
+        .from("gallery")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("recipe_id", recipe.id)
+        .eq("grocery_list_id", groceryLists[0].id)
+        .single();
+      setAlreadySaved(!!existing);
+    }
+    checkAlreadySaved();
+  }, [user, recipe, groceryLists]);
 
   async function handleUpload() {
     setMessage(null);
@@ -118,7 +137,8 @@ export default function UploadPage() {
         body: JSON.stringify({ 
           upload_id: uploadId, 
           file_url: fileUrl, 
-          user_id: userData.user.id 
+          user_id: userData.user.id,
+          image_url: publicUrl
         }),
       });
 
@@ -146,7 +166,6 @@ export default function UploadPage() {
     if (!user) return;
     
     try {
-      // Save recipe to user's saved recipes
       const { error } = await supabase.from("saved_recipes").insert([
         {
           user_id: user.id,
@@ -154,15 +173,58 @@ export default function UploadPage() {
           saved_at: new Date().toISOString()
         }
       ]);
-
       if (error) {
         console.error("Error saving recipe:", error);
         return;
       }
-
-      setMessage("Recipe saved to gallery!");
+      setRecipeSaved(true);
     } catch (e) {
       console.error("Error saving recipe:", e);
+    }
+  }
+
+  async function handleSaveGroceryList(listId: string, recipeId: string) {
+    if (!user) return;
+    try {
+      const { error } = await supabase.from("saved_grocery_lists").insert([
+        {
+          user_id: user.id,
+          grocery_list_id: listId,
+          recipe_id: recipeId,
+          saved_at: new Date().toISOString()
+        }
+      ]);
+      if (!error) {
+        setSavedLists(prev => [...prev, listId]);
+        setJustSaved(listId);
+        setTimeout(() => setJustSaved(null), 2000);
+      }
+    } catch (e) {
+      // handle error
+    }
+  }
+
+  async function handleSave() {
+    if (alreadySaved) return;
+    if (!user || !recipe || !groceryLists.length) return;
+    try {
+      const { error } = await supabase.from("gallery").insert([
+        {
+          user_id: user.id,
+          recipe_id: recipe.id,
+          grocery_list_id: groceryLists[0].id,
+          saved_at: new Date().toISOString()
+        }
+      ]);
+      if (error) {
+        console.error("Error saving recipe and grocery list:", error);
+        return;
+      }
+      setRecipeSaved(true);
+      setSavedLists(prev => [...prev, groceryLists[0].id]);
+      setJustSaved(groceryLists[0].id);
+    } catch (e) {
+      console.error("Error saving recipe and grocery list:", e);
     }
   }
 
@@ -207,13 +269,6 @@ export default function UploadPage() {
             <div className="mb-8">
               <div className="flex justify-between items-start mb-4">
                 <h2 className="font-bold text-2xl">{recipe.title}</h2>
-                <Button 
-                  onClick={() => handleSaveRecipe(recipe.id)}
-                  variant="outline"
-                  size="sm"
-                >
-                  Save Recipe
-                </Button>
               </div>
               
               {recipe.description && (
@@ -264,9 +319,9 @@ export default function UploadPage() {
                     {recipe.instructions}
                   </div>
                   
-                  {recipe.cooking_time && (
+                  {recipe.prep_time && (
                     <div className="mt-3 text-sm text-gray-600">
-                      <strong>Cooking Time:</strong> {recipe.cooking_time}
+                      <strong>Cooking Time:</strong> {recipe.prep_time}
                     </div>
                   )}
                   
@@ -296,14 +351,17 @@ export default function UploadPage() {
                             Rank #{list.recommendation_rank || idx + 1}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <div className="text-xl font-bold text-green-700">
-                            ${list.total_price?.toFixed(2) || "N/A"}
-                          </div>
-                          {list.total_savings > 0 && (
-                            <div className="text-sm text-green-600">
-                              Save ${list.total_savings.toFixed(2)}
-                            </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            onClick={() => handleSaveGroceryList(list.id, recipe.id)}
+                            size="sm"
+                            variant="outline"
+                            disabled={savedLists.includes(list.id)}
+                          >
+                            {savedLists.includes(list.id) ? "Saved" : "Save"}
+                          </Button>
+                          {justSaved === list.id && (
+                            <span className="text-green-600 text-xs ml-2">Saved!</span>
                           )}
                         </div>
                       </div>
