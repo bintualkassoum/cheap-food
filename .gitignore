@@ -44,7 +44,18 @@ venv/
 __pycache__/
 node_modules/
 .env
-
+venv*/
+*.pyc
+__pycache__/
+*.pkl
+*.sqlite3
+*.db
+*.egg-info/
+.env
+*.log
+*.swp
+node_modules/
+backend/venv311/
 # vercel
 .vercel
 
